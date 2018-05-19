@@ -7,5 +7,6 @@ services:
          - "8010:8010"
       volumes:
          - type: bind
-           source: /Users/santhosh/workspace/node-js
-           target: /node-js
+           source: /Users/santhosh/OneDrive/workspace
+           target: /workspace
+           read_only: true
