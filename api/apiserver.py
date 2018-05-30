@@ -4,12 +4,6 @@ import subprocess as sp
 
 apiserver = Flask(__name__)
 
-emulator1 =  {
-                'status'    : u'RUNNING',
-                'uptime'    : u'1min',
-                'version'   : u'1.0beta'
-            }
-
 def get_emulator_info_json():
     emulator = {}
 
