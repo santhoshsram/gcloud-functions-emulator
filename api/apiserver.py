@@ -178,11 +178,19 @@ def deploy_func(src_dir, cmd):
 
 
 ##
-## functions_uri_post_handler(request):
+## POST handler for /functions-emulator/v1/functions
 ##
-## Description: POST method handler for functions_uri_handler
+##  Deploys a new cloud function. Expects a JSON object that
+##  represents the cloud function. The expected JSON format is
+##      {
+##          "function-name": <STRING>,
+##          "entry-point": <STRING>,
+##          "trigger-http": <true/false>  # default = true
+##          "function-b64enc": <STRING>, # 64 bit encoded function source code
+##      }
 ##
-def functions_uri_post_handler(request):
+@apiserver.route("/functions-emulator/v1/functions", methods=['POST'])
+def functions_post():
     if request.json:
         apiserver.logger.debug("Request json: " + str(request.json))
 
@@ -210,30 +218,21 @@ def functions_uri_post_handler(request):
         abort(400)
     return jsonify(response_json), 201
 
+
 ##
-## API handler for /functions-emulator/v1/functions
-## Supported Methods: GET, POST
+## GET handler for /functions-emulator/v1/functions
 ##
-## POST
-##      Deploys a new cloud function. Expects a JSON object that
-##      represents the cloud function. The expected JSON format is
-##          {
-##              "function-name": <STRING>,
-##              "entry-point": <STRING>,
-##              "trigger-http": <true/false>  # default = true
-##              "function-b64enc": <STRING>, # 64 bit encoded function source code
-##          }
+@apiserver.route("/functions-emulator/v1/functions", methods=['GET'])
+def functions_list():
+    return jsonify({'status':'operation not implemented', 'purpose':'list all functions'}), 202
+
+
 ##
-@apiserver.route("/functions-emulator/v1/functions", methods=['GET', 'POST'])
-def functions_uri_handler():
-    if request.method == 'POST':
-        return functions_uri_post_handler(request)
-    elif request.method == 'GET':
-        apiserver.logger.debug("Method GET")
-        return jsonify({'status':'operation not implemented'}), 200
-    else:
-        apiserver.logger.error("Unknown Method " + request.method)
-        return "Unknown Request", 400
+## GET handler for /functions-emulator/v1/functions/<string:function_name>
+##
+@apiserver.route("/functions-emulator/v1/functions/<string:function_name>", methods=['GET'])
+def functions_get(function_name):
+    return jsonify({'status':'operation not implemented', 'purpose':'get function info for ' + function_name}), 202
 
 
 ##
