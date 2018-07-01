@@ -5,13 +5,16 @@ import logging
 import base64
 import time
 import os
+import requests
 
 SRC_BASE = '/tmp/cloud-functions'
 FUNCTION_FILE_NAME = 'index.js'
+EMULATOR_FUNCTIONS_URL = 'http://localhost:8008/v1/projects/cloud-functions/locations/us-central1/functions'
 
 apiserver = Flask(__name__)
 apiserver.config['SRC_BASE'] = SRC_BASE
 apiserver.config['FUNCTION_FILE_NAME'] = FUNCTION_FILE_NAME
+apiserver.config['EMULATOR_FUNCTIONS_URL'] = EMULATOR_FUNCTIONS_URL
 
 if __name__ != "__main__":
     gunicorn_logger = logging.getLogger('gunicorn.error')
@@ -76,7 +79,6 @@ def write_function_source(func_b64enc):
     timestamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
     try:
         func_src = base64.b64decode(func_b64enc)
-        apiserver.logger.debug("Function: \n" + func_src)
     except TypeError:
         apiserver.logger.error("Incorrect base64 encoding of function source")
         return ""
@@ -94,7 +96,6 @@ def write_function_source(func_b64enc):
         apiserver.logger.error("Failed to write function source file. Error: " + str(err))
         abort(500)
 
-    apiserver.logger.info("File written to: " + file_path)
     return src_dir
 
 
@@ -121,7 +122,6 @@ def build_func_create_cmd(req_json):
 
     # Add the function name to the command
     if req_json['function-name']:
-        apiserver.logger.debug("Function Name: " + req_json['function-name'])
         cmd += " " + req_json['function-name']
     else:
         apiserver.logger.error("JSON did not have function name")
@@ -159,7 +159,6 @@ def build_func_create_cmd(req_json):
 def deploy_func(src_dir, cmd):
     try:
         exec_cmd = "cd " + src_dir + "; " + cmd
-        apiserver.logger.debug("Deploy Command: \"" + exec_cmd + "\"")
         output = subprocess.check_output(exec_cmd, stderr=subprocess.STDOUT, shell=True)
     except Exception as err:
         apiserver.logger.error("Failed to deploy function. Error: " + str(err))
@@ -171,8 +170,6 @@ def deploy_func(src_dir, cmd):
     if not match_obj:
         apiserver.logger.error("Unable to extract resource")
         abort(500)
-
-    apiserver.logger.debug("Resource: " + match_obj.group(1))
 
     return {"resource":match_obj.group(1)}
 
@@ -192,14 +189,11 @@ def deploy_func(src_dir, cmd):
 @apiserver.route("/functions-emulator/v1/functions", methods=['POST'])
 def functions_post():
     if request.json:
-        apiserver.logger.debug("Request json: " + str(request.json))
-
         # build the command to deploy the function
         cmd = build_func_create_cmd(request.json)
         if not cmd:
             apiserver.logger.error("Failed to build functions deploy command")
             abort(400)
-        apiserver.logger.debug("Command: \"" + cmd + "\"")
 
         # if the function source is present in the request, write it to a file
         if request.json['function-b64enc']:
@@ -224,7 +218,38 @@ def functions_post():
 ##
 @apiserver.route("/functions-emulator/v1/functions", methods=['GET'])
 def functions_list():
-    return jsonify({'status':'operation not implemented', 'purpose':'list all functions'}), 202
+    funcs = []
+    resp = requests.get(apiserver.config['EMULATOR_FUNCTIONS_URL'])
+
+    if resp.status_code != 200:
+        apiserver.logger.error("Failed to get functions list")
+        abort(resp.status_code)
+
+    for f in resp.json()['functions']:
+        # Extract just the name from the full path
+        func = {}
+        match_obj = re.search(r'.*/(\S+)$', f['name'])
+        if match_obj:
+            func['function-name'] = match_obj.group(1)
+        else:
+            func['function-name'] = "UNKNOWN"
+
+        # Extract the entry point
+        func['entry-point'] = f['entryPoint']
+
+        # Extract the http trigger url if present
+        if f['httpsTrigger']['url']:
+            func['trigger-http'] = "true"
+            func['function-url'] = f['httpsTrigger']['url']
+        else:
+            func['trigger-http'] = "false"
+
+        # Extract the status
+        func['status'] = f['status']
+
+        funcs.append(func)
+
+    return jsonify({'functions': funcs}), 200
 
 
 ##
@@ -232,7 +257,55 @@ def functions_list():
 ##
 @apiserver.route("/functions-emulator/v1/functions/<string:function_name>", methods=['GET'])
 def functions_get(function_name):
-    return jsonify({'status':'operation not implemented', 'purpose':'get function info for ' + function_name}), 202
+    func = {}
+    resp = requests.get(apiserver.config['EMULATOR_FUNCTIONS_URL'] + '/' + function_name)
+
+    if resp.status_code != 200:
+        apiserver.logger.error("Failed to get function " + function_name)
+        abort(resp.status_code)
+
+    f = resp.json()
+
+    # Extract just the name from the full path
+    match_obj = re.search(r'.*/(\S+)$', f['name'])
+    if match_obj:
+        func['function-name'] = match_obj.group(1)
+    else:
+        func['function-name'] = "UNKNOWN"
+
+    # Extract the entry point
+    func['entry-point'] = f['entryPoint']
+
+    # Extract the http trigger url if present
+    if f['httpsTrigger']['url']:
+        func['trigger-http'] = "true"
+        func['function-url'] = f['httpsTrigger']['url']
+    else:
+        func['trigger-http'] = "false"
+
+    # Extract the status
+    func['status'] = f['status']
+
+    return jsonify(func), 200
+
+
+##
+## DELETE handler for /functions-emulator/v1/functions/<string:function_name>
+##
+@apiserver.route("/functions-emulator/v1/functions/<string:function_name>", methods=['DELETE'])
+def functions_delete(function_name):
+    json = {}
+    json["function-name"] = function_name
+
+    resp = requests.delete(apiserver.config['EMULATOR_FUNCTIONS_URL'] + '/' + function_name)
+
+    if resp.status_code != 200:
+        apiserver.logger.error("Failed to delete function " + function_name)
+        json["status"] = "delete failed"
+    else:
+        json["status"] = "deleted"
+
+    return jsonify(json), resp.status_code
 
 
 ##
