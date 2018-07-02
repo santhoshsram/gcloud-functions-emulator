@@ -6,8 +6,3 @@ services:
          - "8008:8008"
          - "8010:8010"
          - "90:90"
-      volumes:
-         - type: bind
-           source: /Users/santhosh/OneDrive/workspace
-           target: /workspace
-           read_only: true
