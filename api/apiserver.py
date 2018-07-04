@@ -52,7 +52,7 @@ def get_emulator_info_json():
     else:
         emulator['version'] = match_obj.group(1)
 
-    return jsonify(emulator)
+    return emulator
 
 
 ##
@@ -61,14 +61,14 @@ def get_emulator_info_json():
 ## Description: Returns the current status of the emulator
 ##
 @apiserver.route("/functions-emulator/v1/emulator", methods=['GET'])
-def emulator_uri_handler():
-    return get_emulator_info_json()
+def emulator_get():
+    return jsonify(get_emulator_info_json())
 
 ##
 ## write_function_source(func_b64enc):
 ##
 ## Description: Base64Decodes the functions source and saves it to a
-##              file. Helper for functions_uri_handler [POST]
+##              file. Helper for functions_post [POST]
 ## Input Argument: Base64Encoded string of the function source
 ## Returns:
 ##      - Non-empty string containing base path where the function
@@ -83,7 +83,7 @@ def write_function_source(func_b64enc):
         apiserver.logger.error("Incorrect base64 encoding of function source")
         return ""
 
-    src_dir = os.path.join(apiserver.config['SRC_BASE'], timestamp)
+    src_dir = os.path.join(apiserver.config['SRC_BASE'], "func-" + timestamp)
     file_path = os.path.join(src_dir, apiserver.config['FUNCTION_FILE_NAME'])
 
     # Create the source directory and write the file
@@ -103,7 +103,7 @@ def write_function_source(func_b64enc):
 ## build_func_create_cmd
 ##
 ## Description: Builds the command to deploy the function. Helper
-##              for functions_uri_handler [POST]
+##              for functions_post [POST]
 ## Input Argument:
 ##      JSON (dict) of the following format
 ##          {
@@ -146,7 +146,7 @@ def build_func_create_cmd(req_json):
 ## deploy_func(src_dir, cmd):
 ##
 ## Description: Base64Decodes the functions source and saves it to a
-##              file. Helper for functions_uri_handler [POST]
+##              file. Helper for functions_post [POST]
 ## Input Arguments:
 ##      - src_dir: Source directory where the function source exists
 ##      - cmd: Command to execute to deploy the function
@@ -165,13 +165,13 @@ def deploy_func(src_dir, cmd):
         abort(500)
 
     # parse resource from the ouptut
-    # resource is the URI where the function can be access over http
+    # resource is the URL where the function can be access over http
     match_obj = re.search(r'Resource.*\s(\w\S+)\s+', output)
     if not match_obj:
         apiserver.logger.error("Unable to extract resource")
         abort(500)
 
-    return {"resource":match_obj.group(1)}
+    return {"function-url":match_obj.group(1)}
 
 
 ##
